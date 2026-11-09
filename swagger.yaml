@@ -8,6 +8,14 @@ host: localhost:3001
 basePath: /api/v1
 schemes:
   - http
+tags:
+  - name: User Module
+    description: Login, signup and user profile (implemented)
+  - name: Transaction Module
+    description: >-
+      Phase 2 proposal, not implemented yet. View the current month's
+      transactions grouped by account, view the details of a transaction, and
+      add, modify or delete its note, and change its category.
 paths:
   /user/login:
     post:
@@ -101,6 +109,193 @@ paths:
           description: Invalid Fields
         '500':
           description: Internal Server Error
+  /accounts:
+    get:
+      security:
+        - Bearer: []
+      tags:
+        - Transaction Module
+      summary: User accounts
+      description: >-
+        Returns every account of the logged-in user with its current balance.
+        Entry point of the transactions feature: the front-end then loads the
+        transactions of each account, so they are displayed grouped by account.
+        One request per account keeps each answer small and matches the
+        one-account-per-page transactions view of the mockup.
+      produces:
+        - application/json
+      responses:
+        '200':
+          description: Accounts retrieved successfully
+          schema:
+            $ref: '#/definitions/AccountsResponse'
+        '401':
+          description: Missing, invalid or expired token
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        '500':
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+  /accounts/{accountId}/transactions:
+    get:
+      security:
+        - Bearer: []
+      tags:
+        - Transaction Module
+      summary: Transactions of an account for a month
+      description: >-
+        Returns the account and its transactions for the current month, newest
+        first. Only the fields shown in the list are sent (date, description,
+        amount, balance): the details of a transaction are loaded on demand
+        with GET /accounts/{accountId}/transactions/{transactionId}.
+      produces:
+        - application/json
+      parameters:
+        - in: path
+          name: accountId
+          description: ID of the account. It must belong to the logged-in user.
+          required: true
+          type: string
+          pattern: '^[0-9a-fA-F]{24}$'
+        - in: query
+          name: month
+          description: >-
+            Optional. Month to display, format YYYY-MM (e.g. 2020-02).
+            Defaults to the current month.
+          required: false
+          type: string
+          pattern: '^[0-9]{4}-(0[1-9]|1[0-2])$'
+      responses:
+        '200':
+          description: Transactions retrieved successfully (the list may be empty)
+          schema:
+            $ref: '#/definitions/TransactionsResponse'
+        '400':
+          description: Invalid accountId or month format
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        '401':
+          description: Missing, invalid or expired token
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        '404':
+          description: Account not found, or not owned by the logged-in user
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        '500':
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+  /accounts/{accountId}/transactions/{transactionId}:
+    get:
+      security:
+        - Bearer: []
+      tags:
+        - Transaction Module
+      summary: Transaction details
+      description: >-
+        Returns all the information of one transaction, including its
+        transaction type, category and note, for the detail view.
+      produces:
+        - application/json
+      parameters:
+        - in: path
+          name: accountId
+          description: ID of the account the transaction belongs to
+          required: true
+          type: string
+          pattern: '^[0-9a-fA-F]{24}$'
+        - in: path
+          name: transactionId
+          description: ID of the transaction
+          required: true
+          type: string
+          pattern: '^[0-9a-fA-F]{24}$'
+      responses:
+        '200':
+          description: Transaction retrieved successfully
+          schema:
+            $ref: '#/definitions/TransactionResponse'
+        '400':
+          description: Invalid accountId or transactionId format
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        '401':
+          description: Missing, invalid or expired token
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        '404':
+          description: >-
+            Transaction not found in this account, or account not owned by the
+            logged-in user
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        '500':
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+    patch:
+      security:
+        - Bearer: []
+      tags:
+        - Transaction Module
+      summary: Update transaction information
+      description: >-
+        Updates the information the user can edit on a transaction. The note
+        can be added, modified or deleted (send an empty string to delete it).
+        The category can be changed: it always has a value, chosen in the
+        select dropdown ("Other" when it does not fit any category). Only the
+        fields sent are changed. The transaction itself (date, description,
+        amount, balance, type) cannot be changed, created or deleted.
+      consumes:
+        - application/json
+      produces:
+        - application/json
+      parameters:
+        - in: path
+          name: accountId
+          description: ID of the account the transaction belongs to
+          required: true
+          type: string
+          pattern: '^[0-9a-fA-F]{24}$'
+        - in: path
+          name: transactionId
+          description: ID of the transaction
+          required: true
+          type: string
+          pattern: '^[0-9a-fA-F]{24}$'
+        - in: body
+          name: body
+          description: Fields to update (at least one)
+          required: true
+          schema:
+            $ref: '#/definitions/TransactionUpdate'
+      responses:
+        '200':
+          description: Transaction updated successfully, returns the updated transaction
+          schema:
+            $ref: '#/definitions/TransactionResponse'
+        '400':
+          description: >-
+            Invalid fields: empty body, unknown category, note longer than 255
+            characters, or a read-only field sent
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        '401':
+          description: Missing, invalid or expired token
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        '404':
+          description: >-
+            Transaction not found in this account, or account not owned by the
+            logged-in user
+          schema:
+            $ref: '#/definitions/ErrorResponse'
+        '500':
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ErrorResponse'
 securityDefinitions:
   Bearer:
     type: apiKey
@@ -156,3 +351,197 @@ definitions:
     properties:
       userName:
         type: string
+  ErrorResponse:
+    type: object
+    required:
+      - status
+      - message
+    properties:
+      status:
+        type: integer
+        description: HTTP status code (400, 401, 404 or 500)
+        example: 400
+      message:
+        type: string
+        description: Short explanation of the error
+        example: Invalid fields
+  Account:
+    type: object
+    required:
+      - id
+      - name
+      - accountNumber
+      - type
+      - balance
+      - balanceType
+      - currency
+    properties:
+      id:
+        type: string
+        example: 6aecca018a293626cb1d4001
+      name:
+        type: string
+        example: Argent Bank Checking
+      accountNumber:
+        type: string
+        description: Masked account number ("x" + last 4 digits), the full number is never sent
+        example: x8349
+      type:
+        type: string
+        enum:
+          - checking
+          - savings
+          - credit_card
+      balance:
+        type: number
+        format: double
+        example: 2082.79
+      balanceType:
+        type: string
+        description: Available balance (checking, savings) or current balance (credit card)
+        enum:
+          - available
+          - current
+      currency:
+        type: string
+        example: USD
+  AccountsResponse:
+    type: object
+    properties:
+      status:
+        type: integer
+        example: 200
+      message:
+        type: string
+        example: Accounts retrieved successfully
+      body:
+        type: array
+        items:
+          $ref: '#/definitions/Account'
+  Transaction:
+    type: object
+    description: Fields displayed in the transaction list. They cannot be edited.
+    required:
+      - id
+      - accountId
+      - date
+      - description
+      - amount
+      - balance
+    properties:
+      id:
+        type: string
+        readOnly: true
+        example: 6aecca018a293626cb1d5001
+      accountId:
+        type: string
+        readOnly: true
+        example: 6aecca018a293626cb1d4001
+      date:
+        type: string
+        format: date-time
+        readOnly: true
+        example: '2020-02-27T10:30:00.000Z'
+      description:
+        type: string
+        readOnly: true
+        example: Golden Sun Bakery
+      amount:
+        type: number
+        format: double
+        readOnly: true
+        description: Negative for a debit, positive for a credit
+        example: -8
+      balance:
+        type: number
+        format: double
+        readOnly: true
+        description: Account balance right after this transaction
+        example: 298
+  TransactionDetails:
+    description: All the information of a transaction, for the detail view
+    allOf:
+      - $ref: '#/definitions/Transaction'
+      - type: object
+        required:
+          - transactionType
+          - category
+        properties:
+          transactionType:
+            type: string
+            readOnly: true
+            enum:
+              - Electronic
+              - Card
+              - Transfer
+              - Check
+              - Cash
+          category:
+            $ref: '#/definitions/TransactionCategory'
+          note:
+            type: string
+            description: Free text added by the user. Empty or absent when there is no note.
+            maxLength: 255
+            example: lorem ipsum
+  TransactionCategory:
+    type: string
+    description: >-
+      Category of the transaction, editable by the user. This list is the
+      contract between back-end and front-end: the select dropdown shows these
+      values. "Other" is used when no category fits.
+    enum:
+      - Food
+      - Transport
+      - Housing
+      - Shopping
+      - Health
+      - Entertainment
+      - Bills
+      - Other
+  TransactionsResponse:
+    type: object
+    properties:
+      status:
+        type: integer
+        example: 200
+      message:
+        type: string
+        example: Transactions retrieved successfully
+      body:
+        type: object
+        properties:
+          account:
+            $ref: '#/definitions/Account'
+          month:
+            type: string
+            description: Month of the transactions, format YYYY-MM
+            example: '2020-02'
+          transactions:
+            type: array
+            items:
+              $ref: '#/definitions/Transaction'
+  TransactionResponse:
+    type: object
+    properties:
+      status:
+        type: integer
+        example: 200
+      message:
+        type: string
+        example: Transaction retrieved successfully
+      body:
+        $ref: '#/definitions/TransactionDetails'
+  TransactionUpdate:
+    type: object
+    description: >-
+      Send only the fields to change (at least one). An empty note deletes the
+      note. Any other field is refused with a 400.
+    minProperties: 1
+    additionalProperties: false
+    properties:
+      category:
+        $ref: '#/definitions/TransactionCategory'
+      note:
+        type: string
+        maxLength: 255
+        example: Birthday cake

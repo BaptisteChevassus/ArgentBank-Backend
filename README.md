@@ -8,7 +8,7 @@ This codebase contains the code needed to run the backend for Argent Bank.
 
 Argent Bank uses the following tech stack:
 
-- [Node.js v12](https://nodejs.org/en/)
+- [Node.js v20](https://nodejs.org/en/) (see `.nvmrc`, run `nvm use`). Newer versions such as Node 26 crash on start because of an old `jsonwebtoken` dependency.
 - [MongoDB Community Server](https://www.mongodb.com/try/download/community)
 
 Please make sure you have the right versions and download both packages. You can verify this by using the following commands in your terminal:
@@ -62,6 +62,8 @@ Once you run the `populate-db` script, you should have two users in your databas
 ## API Documentation
 
 To learn more about how the API works, once you have started your local environment, you can visit: http://localhost:3001/api-docs
+
+The `Transaction Module` section of `swagger.yaml` is the phase 2 proposal for the transactions API. These routes are documented but not implemented yet.
 
 ## Design Assets
 
